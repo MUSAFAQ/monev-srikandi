@@ -108,9 +108,10 @@ export default function ManajemenOPD() {
     u.singkatan?.toLowerCase().includes(search.toLowerCase())
   );
 
+  if (isLoading) return <div className="p-8 text-center text-gray-500">Menyiapkan halaman...</div>;
+
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 relative">
-      
+  <div className="animate-in fade-in duration-500 relative">
       {/* HEADER */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>

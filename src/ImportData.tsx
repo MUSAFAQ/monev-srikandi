@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { UploadCloud, FileSpreadsheet, CheckCircle, AlertTriangle, Save, X, Calculator } from 'lucide-react';
+import { UploadCloud, FileSpreadsheet, CheckCircle, AlertTriangle, Save, X, Calculator, Loader2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 export default function ImportData() {
@@ -7,12 +7,22 @@ export default function ImportData() {
   const [previewData, setPreviewData] = useState<any[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<{ success: number; failed: number } | null>(null);
+  
+  // STATE BARU: Menambahkan status Loading agar seragam dengan halaman lain
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     fetch('http://localhost:3000/instansi-opd')
       .then(res => res.json())
-      .then(data => setOpdList(Array.isArray(data) ? data : data?.data || []))
-      .catch(err => console.error(err));
+      .then(data => {
+        setOpdList(Array.isArray(data) ? data : data?.data || []);
+        // Memberikan jeda waktu 0.3 detik agar transisi animasi terlihat mulus
+        setTimeout(() => setIsLoading(false), 50);
+      })
+      .catch(err => {
+        console.error(err);
+        setIsLoading(false);
+      });
   }, []);
 
   // FUNGSI MEMBACA EXCEL & KALKULASI OTOMATIS
@@ -33,7 +43,6 @@ export default function ImportData() {
           (opd.nama_instansi || '').toLowerCase().includes((row['Nama Instansi'] || '').toLowerCase())
         );
 
-        // 1. AMBIL POIN MENTAH DARI EXCEL
         const rawB1 = parseFloat(row['Poin B1 (Maks 30)']) || 0;
         const rawB2 = parseFloat(row['Poin B2 (Maks 20)']) || 0;
         const rawB3 = parseFloat(row['Poin B3 (Maks 20)']) || 0;
@@ -42,7 +51,6 @@ export default function ImportData() {
         const rawC  = parseFloat(row['Poin C (Maks 9)'])  || 0;
         const rawE  = parseFloat(row['Poin E (Maks 30)']) || 0;
 
-        // 2. KALKULASI KE PERSENTASE (Sama persis dengan Kuesioner Digital)
         const b1_score = (rawB1 / 30) * 100;
         const b2_score = (rawB2 / 20) * 100;
         const b3_score = (rawB3 / 20) * 100;
@@ -51,10 +59,8 @@ export default function ImportData() {
         const c_score  = (rawC / 9) * 100;
         const e_score  = (rawE / 30) * 100;
 
-        // 3. HITUNG RATA-RATA FINAL
         const total = (b1_score + b2_score + b3_score + b4_score + b5_score + c_score + e_score) / 7;
 
-        // 4. TENTUKAN PREDIKAT
         let kategori = 'Kurang';
         if (total >= 90) kategori = 'Sangat Baik';
         else if (total >= 80) kategori = 'Baik';
@@ -64,8 +70,6 @@ export default function ImportData() {
           instansi_id: row['ID Instansi'] || (matchedOpd ? matchedOpd.id : null),
           nama_instansi: row['Nama Instansi'] || (matchedOpd ? matchedOpd.nama_instansi : 'Tidak Diketahui'),
           periode: row['Periode'] || '2026',
-          
-          // Data Siap Kirim (Sudah matang)
           b1_penciptaan: parseFloat(b1_score.toFixed(2)),
           b2_metadata: parseFloat(b2_score.toFixed(2)),
           b3_penyimpanan: parseFloat(b3_score.toFixed(2)),
@@ -75,7 +79,6 @@ export default function ImportData() {
           e_kualitas_aplikasi: parseFloat(e_score.toFixed(2)),
           total_nilai: parseFloat(total.toFixed(2)),
           kategori: kategori,
-          
           isValid: (row['ID Instansi'] || matchedOpd) ? true : false
         };
       });
@@ -84,7 +87,7 @@ export default function ImportData() {
       setUploadStatus(null);
     };
     reader.readAsBinaryString(file);
-    e.target.value = ''; // Reset input file agar bisa upload file yang sama 2x
+    e.target.value = ''; 
   };
 
   const handleSimpanData = async () => {
@@ -127,29 +130,17 @@ export default function ImportData() {
     setIsUploading(false);
   };
 
-  // UNDUH TEMPLATE EXCEL DENGAN KOLOM NILAI MENTAH
   const downloadTemplate = () => {
-    const ws = XLSX.utils.json_to_sheet([
-      { 
-        'ID Instansi': '', 
-        'Nama Instansi': 'Kecamatan Rengel', 
-        'Periode': 2026, 
-        'Poin B1 (Maks 30)': 25, 
-        'Poin B2 (Maks 20)': 18, 
-        'Poin B3 (Maks 20)': 15, 
-        'Poin B4 (Maks 25)': 20, 
-        'Poin B5 (Maks 20)': 18, 
-        'Poin C (Maks 9)': 7, 
-        'Poin E (Maks 30)': 28 
-      }
-    ]);
+    const ws = XLSX.utils.json_to_sheet([{ 'ID Instansi': '', 'Nama Instansi': 'Kecamatan Rengel', 'Periode': 2026, 'Poin B1 (Maks 30)': 25, 'Poin B2 (Maks 20)': 18, 'Poin B3 (Maks 20)': 15, 'Poin B4 (Maks 25)': 20, 'Poin B5 (Maks 20)': 18, 'Poin C (Maks 9)': 7, 'Poin E (Maks 30)': 28 }]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Template_Monev");
     XLSX.writeFile(wb, "Template_Import_Mentah.xlsx");
   };
 
+  if (isLoading) return <div className="p-8 text-center text-gray-500">Memuat data impport</div>;
+
   return (
-    <div className="animate-in fade-in duration-500 pb-20">
+    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
       <div className="mb-8">
         <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
           <UploadCloud className="w-7 h-7 text-blue-600" /> Import Data Massal

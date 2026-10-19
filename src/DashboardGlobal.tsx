@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Building2, Star, AlertTriangle } from 'lucide-react';
+import { Building2, Star, AlertTriangle, ArrowLeft, Activity } from 'lucide-react';
 import { BarChart, Bar, XAxis, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
 interface DashboardGlobalProps {
@@ -13,20 +13,30 @@ export default function DashboardGlobal({ onNavigate, filterPeriode = '2026' }: 
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([
-      fetch('http://localhost:3000/instansi-opd').then(res => res.json()),
-      fetch('http://localhost:3000/hasil-monev').then(res => res.json())
-    ])
+  let isMounted = true;
+  const MIN_LOADING_MS = 500;
+  const startTime = Date.now();
+
+  Promise.all([
+    fetch('http://localhost:3000/instansi-opd').then(res => res.json()),
+    fetch('http://localhost:3000/hasil-monev').then(res => res.json())
+  ])
     .then(([dataOpd, dataMonev]) => {
+      if (!isMounted) return;
       setOpdList(Array.isArray(dataOpd) ? dataOpd : (dataOpd?.data || []));
       setPenilaianList(Array.isArray(dataMonev) ? dataMonev : (dataMonev?.data || []));
-      setIsLoading(false);
     })
     .catch((error) => {
       console.error('Gagal mengambil data Dashboard:', error);
-      setIsLoading(false);
+    })
+    .finally(() => {
+      const elapsed = Date.now() - startTime;
+      const remaining = Math.max(MIN_LOADING_MS - elapsed, 0);
+      setTimeout(() => { if (isMounted) setIsLoading(false); }, remaining);
     });
-  }, []);
+
+  return () => { isMounted = false; };
+}, []);
 
   // PROSES PENYARINGAN BERDASARKAN PERIODE
   const filteredPenilaian = filterPeriode === 'Semua' 
@@ -65,19 +75,31 @@ export default function DashboardGlobal({ onNavigate, filterPeriode = '2026' }: 
     { name: 'Kurang', value: filteredPenilaian.filter(i => i.kategori === 'Kurang').length, color: '#ef4444' }, 
   ].filter(item => item.value > 0); 
 
-  if (isLoading) return <div className="p-8 text-center text-gray-500">Memuat data Dashboard Global...</div>;
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-gray-500">
+        <Activity className="w-8 h-8 animate-spin text-blue-500 mb-4" />
+        <p className="font-medium animate-pulse">Menyiapkan Dashboard Global...</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="animate-in fade-in duration-500 pb-20">
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-800">Dashboard Global</h2>
-        <p className="text-sm text-gray-500 mt-1">
-          Ringkasan hasil monitoring dan evaluasi SRIKANDI 
-          <span className="font-bold text-blue-600 ml-1">
-            ({filterPeriode === 'Semua' ? 'Keseluruhan Periode' : `Tahun ${filterPeriode}`})
-          </span>
-        </p>
+    <div className="animasi-naik pb-20">
+      <div className="flex items-center mb-8 border-b border-gray-200 pb-4">
+        <button onClick={() => onNavigate('portal')} className="p-2 mr-4 bg-white border border-gray-300 hover:bg-gray-100 text-gray-600 rounded-lg transition shadow-sm">
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+      <div>
+          <h2 className="text-2xl font-bold text-gray-800">Dashboard Monitoring & Evaluasi SRIKANDI</h2>
+          <p className="text-sm text-gray-500 mt-1">
+            Ringkasan hasil monitoring dan evaluasi SRIKANDI 
+            <span className="font-bold text-blue-600 ml-1">
+              ({filterPeriode === 'Semua' ? 'Keseluruhan Periode' : `Tahun ${filterPeriode}`})
+            </span>
+          </p>
       </div>
+    </div>
 
       {/* 3 SUMMARY CARDS */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">

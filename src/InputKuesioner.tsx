@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FileText, Save, AlertCircle } from 'lucide-react';
+import { FileText, Save, AlertCircle, Loader2 } from 'lucide-react';
 
 const SOAL_B1 = ["Naskah dinas dibuat langsung melalui fitur Konsep Naskah", "Nomor naskah dinas diberikan melalui sistem", "Naskah dinas keluar diterbitkan menggunakan naskah final", "Naskah dinas yang diterbitkan menggunakan TTE", "Naskah dinas yang dibuat tercatat dalam log", "Surat masuk dari pihak eksternal diterima dan diregistrasi"];
 const SOAL_B2 = ["Data/informasi arsip (metadata) diisi secara lengkap", "Klasifikasi arsip dipilih sesuai dengan JRA", "Jenis arsip diisi sesuai dengan kondisi naskah", "Metadata diperiksa sebelum naskah dikirim"];
@@ -24,6 +24,7 @@ export default function InputKuesioner() {
   const [ansE, setAnsE] = useState<number[]>(Array(6).fill(0));
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoading, setIsLoading] = useState(true); // <-- STATE LOADING SUDAH DITAMBAHKAN
 
   useEffect(() => {
     Promise.all([
@@ -33,8 +34,13 @@ export default function InputKuesioner() {
     .then(([dataOpd, dataMonev]) => {
       if (Array.isArray(dataOpd)) setOpdList(dataOpd);
       if (Array.isArray(dataMonev)) setExistingData(dataMonev);
+      // Memberikan jeda 0.3 detik agar transisi halaman terlihat anggun
+      setTimeout(() => setIsLoading(false), 50);
     })
-    .catch(err => console.error(err));
+    .catch(err => {
+      console.error(err);
+      setIsLoading(false);
+    });
   }, []);
 
   const updateAns = (setFunc: React.Dispatch<React.SetStateAction<number[]>>, index: number, val: number) => {
@@ -66,15 +72,12 @@ export default function InputKuesioner() {
     }
 
     // 2. PENJAGA GERBANG VERSI BARU (Fitur Edit)
-    // Kita cari apakah instansi ini sudah punya ID data di database
     const existingRecord = existingData.find(item => String(item.instansi_id) === String(instansiId));
     
-    // Jika data sudah ada, kita minta konfirmasi untuk menimpa (Edit)
     if (existingRecord) {
       const confirmEdit = window.confirm(
         'Instansi ini sudah memiliki nilai di sistem.\n\nApakah Anda yakin ingin MENGHITUNG ULANG dan MENIMPA nilai sebelumnya dengan isian kuesioner yang baru ini?'
       );
-      // Jika user klik "Cancel/Batal", hentikan proses
       if (!confirmEdit) return; 
     }
 
@@ -96,8 +99,6 @@ export default function InputKuesioner() {
     };
 
     try {
-      // 3. LOGIKA JALUR API (POST untuk Baru, PATCH untuk Edit)
-      // Jika data sudah ada, kita tembak ke URL spesifik dengan ID-nya untuk di-update
       const url = existingRecord 
         ? `http://localhost:3000/hasil-monev/${existingRecord.id}` 
         : 'http://localhost:3000/hasil-monev';
@@ -111,14 +112,12 @@ export default function InputKuesioner() {
       });
 
       if (response.ok) {
-        // Tampilkan pesan yang berbeda tergantung statusnya (Baru vs Edit)
         alert(
           existingRecord 
           ? `UPDATE SUKSES! Nilai berhasil diperbarui.\nNilai Akhir Baru: ${payload.total_nilai} (${payload.kategori})` 
           : `SUKSES! Data baru berhasil ditambahkan.\nNilai Akhir: ${payload.total_nilai} (${payload.kategori})`
         );
         
-        // Refresh memori internal aplikasi agar penjaga gerbang tahu data terbaru
         const updatedData = await fetch('http://localhost:3000/hasil-monev').then(res => res.json());
         setExistingData(Array.isArray(updatedData) ? updatedData : (updatedData?.data || []));
 
@@ -153,6 +152,11 @@ export default function InputKuesioner() {
     </div>
   );
 
+  // === TAMPILAN LOADING YANG RAPI ===
+  if (isLoading) return <div className="p-8 text-center text-gray-500">Memuat data kuisioner...</div>;
+
+
+  // === KELAS TAILWIND (ANIMASI NAIK & FADE-IN) ===
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
       <div className="flex justify-between items-center mb-8">
